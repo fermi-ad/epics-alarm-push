@@ -1,0 +1,3 @@
+#  dbracey 2026 Fermilab
+
+device( , CONSTANT, alarmPushDevice, "AlarmPush")
