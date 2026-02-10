@@ -6,11 +6,9 @@
 
 #include "hiredis.h"
 
-#define EPICS_EXPORT_ADDRESS(...) epicsExportAddress(__VA_ARGS__);
-
 static redisContext* redis = 0;
 
-static void my_alarm_func(void *user_arg, struct dbChannel *chan, int eventsRemaining, struct db_field_log *pfl)
+static void my_alarm_func(void* user_arg, struct dbChannel* chan, int eventsRemaining, struct db_field_log* pfl)
 {
   errlogPrintf("\nredis %p | chan %s | recd %s | stat %i | sevr %i\n",
       redis, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
@@ -90,5 +88,7 @@ static long init_device(int pass)
 }
 
 static dset alarmPushDevice = { 4, 0, (DEVSUPFUN)init_device, 0, 0 };
+
+#define EPICS_EXPORT_ADDRESS(...) epicsExportAddress(__VA_ARGS__);
 
 EPICS_EXPORT_ADDRESS(dset, alarmPushDevice)

@@ -8,7 +8,7 @@ all:
 # dont allow hiredis to install
 install buildInstall rebuild: all
 
-# hiredis doesnt know epics fancy clean targets
+# hiredis doesnt know epics clean targets
 clean:
 	$(MAKE) -C hiredis clean
 	$(MAKE) -f Makefile.Epics $(MAKECMDGOALS)
