@@ -1,11 +1,8 @@
-.PHONY: all help install buildInstall rebuild clean archclean realclean uninstall realuninstall distclean cvsclean
+.PHONY: all install buildInstall rebuild clean archclean realclean uninstall realuninstall distclean cvsclean help
 
 # make hiredis static only so epics linking has no choice
 all:
 	$(MAKE) -C hiredis static
-	$(MAKE) -f Makefile.Epics $(MAKECMDGOALS)
-
-help:
 	$(MAKE) -f Makefile.Epics $(MAKECMDGOALS)
 
 # dont allow hiredis to install
@@ -17,3 +14,6 @@ clean:
 	$(MAKE) -f Makefile.Epics $(MAKECMDGOALS)
 
 archclean realclean uninstall realuninstall distclean cvsclean: clean
+
+help:
+	$(MAKE) -f Makefile.Epics $(MAKECMDGOALS)
