@@ -8,7 +8,7 @@
 
 static redisContext* redis = 0;
 
-static void my_alarm_func(void* user_arg, struct dbChannel* chan, int eventsRemaining, struct db_field_log* pfl)
+static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, db_field_log* pfl)
 {
   errlogPrintf("\nredis %p | chan %s | recd %s | stat %i | sevr %i\n",
       redis, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
@@ -21,8 +21,7 @@ static void my_alarm_func(void* user_arg, struct dbChannel* chan, int eventsRema
 
     if (reply == 0 || reply->type == REDIS_REPLY_ERROR)
     {
-      // throttle reconnects
-      static time_t prev = 0;
+      static time_t prev = 0;   // throttle reconnects
       time_t curr = time(0);
       if (curr > prev)
       {
