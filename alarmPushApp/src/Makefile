@@ -23,7 +23,7 @@ alarmPush_LIBS += hiredis
 
 hiredis_DIR = $(TOP)/hiredis
 
-CPPFLAGS += -DUSE_TYPED_RSET
+USR_CPPFLAGS += -DUSE_TYPED_RSET
 
 #===========================
 
