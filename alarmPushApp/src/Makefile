@@ -18,6 +18,9 @@ alarmPush_SRCS += alarmPush.cpp
 
 alarmPush_LIBS += $(EPICS_BASE_IOC_LIBS)
 
+alarmPush_LIBS += hiredis
+hiredis_DIR = $(TOP)/hiredis
+
 CPPFLAGS += -DUSE_TYPED_RSET
 
 #===========================
