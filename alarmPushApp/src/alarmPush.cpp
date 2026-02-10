@@ -2,19 +2,17 @@
 #include <dbAccess.h>
 #include <dbStaticLib.h>
 #include <epicsExport.h>
+#include <envDefs.h>
 
 #include "hiredis.h"
 
 #define EPICS_EXPORT_ADDRESS(...) epicsExportAddress(__VA_ARGS__);
 
-static char REDIS_HOST[32] = "127.0.0.1";
-static int  REDIS_PORT = 6379;
-
 static redisContext* redis = 0;
 
 static void my_alarm_func(void *user_arg, struct dbChannel *chan, int eventsRemaining, struct db_field_log *pfl)
 {
-  errlogPrintf("\nredis %p | chan %s | recd %s | stat %i | sevr %i",
+  errlogPrintf("\nredis %p | chan %s | recd %s | stat %i | sevr %i\n",
       redis, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
 
   if (redis)
@@ -32,16 +30,16 @@ static void my_alarm_func(void *user_arg, struct dbChannel *chan, int eventsRema
       {
         prev = curr;
         int result = redisReconnect(redis);
-        errlogPrintf("\nerror %s | %s | reconnect %i", reply ? reply->str : 0, redis->errstr, result);
+        errlogPrintf("error %s | %s | reconnect %i\n", reply ? reply->str : 0, redis->errstr, result);
       }
       else
       {
-        errlogPrintf("\nerror %s | %s | defer", reply ? reply->str : 0, redis->errstr);
+        errlogPrintf("error %s | %s | defer\n", reply ? reply->str : 0, redis->errstr);
       }
     }
     else
     {
-      errlogPrintf("\nreply %s", reply->str);
+      errlogPrintf("reply %s\n", reply->str);
     }
     freeReplyObject(reply);   //  ok to free 0
   }
@@ -51,8 +49,22 @@ static long init_device(int pass)
 {
   if (pass == 1 && redis == 0)
   {
-    redis = redisConnect(REDIS_HOST, REDIS_PORT);
-    errlogPrintf("redis %p | %s\n", redis, redis ? redis->errstr : 0);
+    char redis_host_key[] = "EPICS_ALARM_PUSH_REDIS_HOST";
+    char redis_host_default[] = "127.0.0.1";
+    char redis_host[64];
+    ENV_PARAM envp = { redis_host_key, redis_host_default };
+    envGetConfigParam(&envp, sizeof(redis_host), redis_host);
+
+    char redis_port_key[] = "EPICS_ALARM_PUSH_REDIS_PORT";
+    char redis_port_default[] = "6379";
+    char redis_port_str[16];
+    envp = { redis_port_key, redis_port_default };
+    envGetConfigParam(&envp, sizeof(redis_port_str), redis_port_str);
+    int redis_port = atoi(redis_port_str);
+
+    redis = redisConnect(redis_host, redis_port);
+    errlogPrintf("redis host %s | port %i | context %p | %s\n",
+        redis_host, redis_port, redis, redis && redis->errstr[0] ? redis->errstr : "ok");
 
     auto ctx = db_init_events();
     auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);
