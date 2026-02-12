@@ -13,35 +13,44 @@ static redisContext* REDIS_CTX = 0;
 
 static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, db_field_log* pfl)
 {
-  errlogPrintf("\nredis %p | key %s | chan %s | recd %s | stat %i | sevr %i\n",
-      REDIS_CTX, REDIS_KEY, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
-
-  if (REDIS_CTX)
+  if (chan && pfl)
   {
-    redisReply* reply = (redisReply*)redisCommand(REDIS_CTX,
-        "XADD %s MAXLEN 99999 * device %s status %i severity %i",
-        REDIS_KEY, chan->addr.precord->name, pfl->stat, pfl->sevr);
+    errlogPrintf("\nredis %p | key %s | chan %s | recd %s | stat %i | sevr %i",
+        REDIS_CTX, REDIS_KEY, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
+    if (pfl->amsg[0]) { errlogPrintf(" | amsg %s\n", pfl->amsg); }
+    else { errlogPrintf("\n"); }
 
-    if (reply == 0 || reply->type == REDIS_REPLY_ERROR)
+    if (REDIS_CTX)
     {
-      static time_t prev = 0;   // throttle reconnects
-      time_t curr = time(0);
-      if (curr > prev)
+      char cmd[1024];
+      sprintf(cmd, "XADD %s MAXLEN 99999 * device %s status %i severity %i",
+          REDIS_KEY, chan->addr.precord->name, pfl->stat, pfl->sevr);
+
+      if (pfl->amsg[0]) { strcat(cmd, " message "); strcat(cmd, pfl->amsg); }
+
+      redisReply* reply = (redisReply*)redisCommand(REDIS_CTX, cmd);
+
+      if (reply == 0 || reply->type == REDIS_REPLY_ERROR)
       {
-        prev = curr;
-        int result = redisReconnect(REDIS_CTX);
-        errlogPrintf("error %s | %s | reconnect %i\n", reply ? reply->str : 0, REDIS_CTX->errstr, result);
+        static time_t prev = 0;   // throttle reconnects
+        time_t curr = time(0);
+        if (curr > prev)
+        {
+          prev = curr;
+          int result = redisReconnect(REDIS_CTX);
+          errlogPrintf("error %s | %s | reconnect %i\n", reply ? reply->str : 0, REDIS_CTX->errstr, result);
+        }
+        else
+        {
+          errlogPrintf("error %s | %s | defer\n", reply ? reply->str : 0, REDIS_CTX->errstr);
+        }
       }
       else
       {
-        errlogPrintf("error %s | %s | defer\n", reply ? reply->str : 0, REDIS_CTX->errstr);
+        errlogPrintf("reply %s\n", reply->str);
       }
+      freeReplyObject(reply);   //  ok to free 0
     }
-    else
-    {
-      errlogPrintf("reply %s\n", reply->str);
-    }
-    freeReplyObject(reply);   //  ok to free 0
   }
 }
 
@@ -68,9 +77,9 @@ static long init_device(int pass)
     int redis_port = atoi(redis_port_str);
 
     REDIS_CTX = redisConnect(redis_host, redis_port);
-    errlogPrintf("redis host %s | port %i | context %p | %s\n",
-        redis_host, redis_port, REDIS_CTX,
-        REDIS_CTX && REDIS_CTX->errstr[0] ? REDIS_CTX->errstr : "ok");
+    errlogPrintf("redis host %s | port %i | context %p", redis_host, redis_port, REDIS_CTX);
+    if (REDIS_CTX && REDIS_CTX->errstr[0]) { errlogPrintf(" | %s\n", REDIS_CTX->errstr); }
+    else { errlogPrintf("\n"); }
 
     auto ctx = db_init_events();
     auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);
