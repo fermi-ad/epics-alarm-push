@@ -4,20 +4,23 @@
 #include <epicsExport.h>
 #include <envDefs.h>
 
+#include <string.h>
+
 #include "hiredis.h"
 
-static redisContext* redis = 0;
+static char REDIS_KEY[64] = { 0 };
+static redisContext* REDIS_CTX = 0;
 
 static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, db_field_log* pfl)
 {
-  errlogPrintf("\nredis %p | chan %s | recd %s | stat %i | sevr %i\n",
-      redis, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
+  errlogPrintf("\nredis %p | key %s | chan %s | recd %s | stat %i | sevr %i\n",
+      REDIS_CTX, REDIS_KEY, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
 
-  if (redis)
+  if (REDIS_CTX)
   {
-    redisReply* reply = (redisReply*)redisCommand(redis,
-        "XADD acorn:epics:alarms MAXLEN 99999 * device %s status %i severity %i",
-        chan->addr.precord->name, pfl->stat, pfl->sevr);
+    redisReply* reply = (redisReply*)redisCommand(REDIS_CTX,
+        "XADD %s MAXLEN 99999 * device %s status %i severity %i",
+        REDIS_KEY, chan->addr.precord->name, pfl->stat, pfl->sevr);
 
     if (reply == 0 || reply->type == REDIS_REPLY_ERROR)
     {
@@ -26,12 +29,12 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
       if (curr > prev)
       {
         prev = curr;
-        int result = redisReconnect(redis);
-        errlogPrintf("error %s | %s | reconnect %i\n", reply ? reply->str : 0, redis->errstr, result);
+        int result = redisReconnect(REDIS_CTX);
+        errlogPrintf("error %s | %s | reconnect %i\n", reply ? reply->str : 0, REDIS_CTX->errstr, result);
       }
       else
       {
-        errlogPrintf("error %s | %s | defer\n", reply ? reply->str : 0, redis->errstr);
+        errlogPrintf("error %s | %s | defer\n", reply ? reply->str : 0, REDIS_CTX->errstr);
       }
     }
     else
@@ -44,24 +47,30 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
 
 static long init_device(int pass)
 {
-  if (pass == 1 && redis == 0)
+  if (pass == 1 && REDIS_CTX == 0)
   {
-    char redis_host_key[] = "EPICS_ALARM_PUSH_REDIS_HOST";
-    char redis_host_default[] = "127.0.0.1";
+    char env_key[64], env_def[64];
+    ENV_PARAM envp = { env_key, env_def };
+
+    strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_KEY", sizeof(env_key));
+    strncpy(env_def, "acorn:epics:alarms", sizeof(env_def));
+    envGetConfigParam(&envp, sizeof(REDIS_KEY), REDIS_KEY);
+
+    strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_HOST", sizeof(env_key));
+    strncpy(env_def, "127.0.0.1", sizeof(env_def));
     char redis_host[64];
-    ENV_PARAM envp = { redis_host_key, redis_host_default };
     envGetConfigParam(&envp, sizeof(redis_host), redis_host);
 
-    char redis_port_key[] = "EPICS_ALARM_PUSH_REDIS_PORT";
-    char redis_port_default[] = "6379";
+    strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_PORT", sizeof(env_key));
+    strncpy(env_def, "6379", sizeof(env_def));
     char redis_port_str[16];
-    envp = { redis_port_key, redis_port_default };
     envGetConfigParam(&envp, sizeof(redis_port_str), redis_port_str);
     int redis_port = atoi(redis_port_str);
 
-    redis = redisConnect(redis_host, redis_port);
+    REDIS_CTX = redisConnect(redis_host, redis_port);
     errlogPrintf("redis host %s | port %i | context %p | %s\n",
-        redis_host, redis_port, redis, redis && redis->errstr[0] ? redis->errstr : "ok");
+        redis_host, redis_port, REDIS_CTX,
+        REDIS_CTX && REDIS_CTX->errstr[0] ? REDIS_CTX->errstr : "ok");
 
     auto ctx = db_init_events();
     auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);
