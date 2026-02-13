@@ -6,7 +6,7 @@ Prototype IOC alarm pusher using Redis in a support module
 
 Set these environment variables to provide Redis connection information.
 
-- `EPICS_ALARM_PUSH_REDIS_HOST`   (default `127.0.0.1`)
+- `EPICS_ALARM_PUSH_REDIS_HOST`   (default `localhost`)
 - `EPICS_ALARM_PUSH_REDIS_PORT`   (default `6379`)
 
 The stream key may also be specified.
