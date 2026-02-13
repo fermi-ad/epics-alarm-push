@@ -3,6 +3,7 @@
 #include <dbStaticLib.h>
 #include <epicsExport.h>
 #include <envDefs.h>
+#include <alarm.h>
 
 #include <string.h>
 
@@ -13,20 +14,32 @@ static redisContext* REDIS_CTX = 0;
 
 static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, db_field_log* pfl)
 {
-  if (chan && pfl)
+  if (chan && chan->addr.precord && pfl)
   {
     errlogPrintf("\nredis %p | key %s | chan %s | recd %s | stat %i | sevr %i",
         REDIS_CTX, REDIS_KEY, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
-    if (pfl->amsg[0]) { errlogPrintf(" | amsg %s\n", pfl->amsg); }
-    else { errlogPrintf("\n"); }
+
+    if (pfl->amsg[0])
+      { errlogPrintf(" | amsg %s\n", pfl->amsg); }
+    else
+      { errlogPrintf("\n"); }
 
     if (REDIS_CTX)
     {
-      char cmd[1024];
-      sprintf(cmd, "XADD %s MAXLEN 99999 * device %s status %i severity %i",
-          REDIS_KEY, chan->addr.precord->name, pfl->stat, pfl->sevr);
+      const char* stat_str = (pfl->stat < ALARM_NSTATUS)
+          ? epicsAlarmConditionStrings[pfl->stat]
+          : "INVALID";
+      const char* sevr_str = (pfl->sevr < ALARM_NSEV)
+          ? epicsAlarmSeverityStrings[pfl->sevr]
+          : epicsAlarmSeverityStrings[epicsSevInvalid];
 
-      if (pfl->amsg[0]) { strcat(cmd, " message "); strcat(cmd, pfl->amsg); }
+      char cmd[1024];
+      sprintf(cmd, "XADD %s MAXLEN 99999 * device '%s' type %s severity %s",
+          REDIS_KEY, chan->addr.precord->name, stat_str, sevr_str);
+
+      //  TODO: add a message if none is present on pfl->amsg
+      if (pfl->amsg[0])
+        { strcat(cmd, " message '"); strcat(cmd, pfl->amsg); strcat(cmd, "'"); }
 
       redisReply* reply = (redisReply*)redisCommand(REDIS_CTX, cmd);
 
@@ -34,6 +47,7 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
       {
         static time_t prev = 0;   // throttle reconnects
         time_t curr = time(0);
+
         if (curr > prev)
         {
           prev = curr;
@@ -78,8 +92,11 @@ static long init_device(int pass)
 
     REDIS_CTX = redisConnect(redis_host, redis_port);
     errlogPrintf("redis host %s | port %i | context %p", redis_host, redis_port, REDIS_CTX);
-    if (REDIS_CTX && REDIS_CTX->errstr[0]) { errlogPrintf(" | %s\n", REDIS_CTX->errstr); }
-    else { errlogPrintf("\n"); }
+
+    if (REDIS_CTX && REDIS_CTX->errstr[0])
+      { errlogPrintf(" | %s\n", REDIS_CTX->errstr); }
+    else
+      { errlogPrintf("\n"); }
 
     auto ctx = db_init_events();
     auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);

@@ -6,9 +6,12 @@ Prototype IOC alarm pusher using Redis in a support module
 
 Set these environment variables to provide Redis connection information.
 
-- EPICS_ALARM_PUSH_REDIS_KEY
-- EPICS_ALARM_PUSH_REDIS_HOST
-- EPICS_ALARM_PUSH_REDIS_PORT
+- `EPICS_ALARM_PUSH_REDIS_HOST`   (default `127.0.0.1`)
+- `EPICS_ALARM_PUSH_REDIS_PORT`   (default `6379`)
+
+The stream key may also be specified.
+
+- `EPICS_ALARM_PUSH_REDIS_KEY`    (default `acorn:alarms`)
 
 ## IOC Integration
 
@@ -29,3 +32,14 @@ In the IOC's `myIOCApp/src/Makefile`:
 ```
   myIOC_LIBS += alarmPush
 ```
+
+## Theory of Operation
+
+### Redis Schema
+
+Key      | Example Value           | Description
+---------|-------------------------|------------
+device   | acq2106_347:SFP:1:TEMP  | PV name
+type     | HIHI                    | EPICS [alarm status choice string](https://docs.epics-controls.org/projects/base/en/r7.0.9/menuAlarmStat.html) or ANALOG (ACNET) or DIGITAL (ACNET)
+severity | MAJOR                   | EPICS [alarm severity choice string](https://docs.epics-controls.org/projects/base/en/r7.0.9/menuAlarmSevr.html)
+message  | value has exceeded HIHI | Text describing the alarm specifics
