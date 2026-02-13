@@ -17,7 +17,7 @@ The stream key may also be specified.
 
 In the IOC's `configure/RELEASE` or `configure/RELEASE.local`:
 
-- Add the path for the alarmPush's top directory:
+- Add the path for the alarmPush top directory:
 ```
   ALARM_PUSH=/home/dbracey/dbracey-ioc-alarm-push-proto3
 ```
@@ -40,6 +40,6 @@ In the IOC's `myIOCApp/src/Makefile`:
 Key      | Example Value           | Description
 ---------|-------------------------|------------
 device   | acq2106_347:SFP:1:TEMP  | PV name
-type     | HIHI                    | EPICS [alarm status choice string](https://docs.epics-controls.org/projects/base/en/r7.0.9/menuAlarmStat.html) or ANALOG (ACNET) or DIGITAL (ACNET)
-severity | MAJOR                   | EPICS [alarm severity choice string](https://docs.epics-controls.org/projects/base/en/r7.0.9/menuAlarmSevr.html)
+type     | HIHI                    | EPICS [alarm status string](https://docs.epics-controls.org/projects/base/en/r7.0.9/menuAlarmStat.html) or ANALOG or DIGITAL
+severity | MAJOR                   | EPICS [alarm severity string](https://docs.epics-controls.org/projects/base/en/r7.0.9/menuAlarmSevr.html)
 message  | value has exceeded HIHI | Text describing the alarm specifics
