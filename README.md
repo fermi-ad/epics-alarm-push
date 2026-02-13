@@ -6,12 +6,12 @@ Prototype IOC alarm pusher using Redis in a support module
 
 Set these environment variables to provide Redis connection information.
 
-- `EPICS_ALARM_PUSH_REDIS_HOST`     (default `localhost`)
-- `EPICS_ALARM_PUSH_REDIS_PORT`     (default `6379`)
+- `ACORN_ALARM_PUSH_REDIS_HOST`   (default `localhost`)
+- `ACORN_ALARM_PUSH_REDIS_PORT`   (default `6379`)
 
 The stream key may also be specified.
 
-- `EPICS_ALARM_PUSH_REDIS_STREAM`   (default `acorn:alarms`)
+- `ACORN_ALARM_PUSH_REDIS_STREAM` (default `acorn:alarms`)
 
 ## IOC Integration
 

@@ -75,16 +75,16 @@ static long init_device(int pass)
     char env_key[64], env_def[64];
     ENV_PARAM envp = { env_key, env_def };
 
-    strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_STREAM", sizeof(env_key));
+    strncpy(env_key, "ACORN_ALARM_PUSH_REDIS_STREAM", sizeof(env_key));
     strncpy(env_def, "acorn:alarms", sizeof(env_def));
     envGetConfigParam(&envp, sizeof(REDIS_STREAM), REDIS_STREAM);
 
-    strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_HOST", sizeof(env_key));
+    strncpy(env_key, "ACORN_ALARM_PUSH_REDIS_HOST", sizeof(env_key));
     strncpy(env_def, "localhost", sizeof(env_def));
     char redis_host[64];
     envGetConfigParam(&envp, sizeof(redis_host), redis_host);
 
-    strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_PORT", sizeof(env_key));
+    strncpy(env_key, "ACORN_ALARM_PUSH_REDIS_PORT", sizeof(env_key));
     strncpy(env_def, "6379", sizeof(env_def));
     char redis_port_str[16];
     envGetConfigParam(&envp, sizeof(redis_port_str), redis_port_str);
