@@ -9,15 +9,15 @@
 
 #include "hiredis.h"
 
-static char REDIS_KEY[64] = { 0 };
+static char REDIS_STREAM[64] = { 0 };
 static redisContext* REDIS_CTX = 0;
 
 static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, db_field_log* pfl)
 {
   if (chan && chan->addr.precord && pfl)
   {
-    errlogPrintf("\nredis %p | key %s | chan %s | recd %s | stat %i | sevr %i",
-        REDIS_CTX, REDIS_KEY, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
+    errlogPrintf("\nredis %p | stream %s | chan %s | recd %s | stat %i | sevr %i",
+        REDIS_CTX, REDIS_STREAM, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
 
     if (pfl->amsg[0])
       { errlogPrintf(" | amsg %s\n", pfl->amsg); }
@@ -35,7 +35,7 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
 
       char cmd[1024];
       sprintf(cmd, "XADD %s MAXLEN 99999 * device '%s' type %s severity %s",
-          REDIS_KEY, chan->addr.precord->name, stat_str, sevr_str);
+          REDIS_STREAM, chan->addr.precord->name, stat_str, sevr_str);
 
       //  TODO: add a message if none is present on pfl->amsg
       if (pfl->amsg[0])
@@ -75,9 +75,9 @@ static long init_device(int pass)
     char env_key[64], env_def[64];
     ENV_PARAM envp = { env_key, env_def };
 
-    strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_KEY", sizeof(env_key));
+    strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_STREAM", sizeof(env_key));
     strncpy(env_def, "acorn:alarms", sizeof(env_def));
-    envGetConfigParam(&envp, sizeof(REDIS_KEY), REDIS_KEY);
+    envGetConfigParam(&envp, sizeof(REDIS_STREAM), REDIS_STREAM);
 
     strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_HOST", sizeof(env_key));
     strncpy(env_def, "localhost", sizeof(env_def));
