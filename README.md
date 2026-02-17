@@ -1,17 +1,21 @@
-# dbracey-ioc-alarm-push-proto3
+# epics-alarm-push
 
-Prototype IOC alarm pusher using Redis in a support module
+EPICS alarm pusher using Redis in an IOC support module
 
 ## Environment Variables
 
-Set these environment variables to provide Redis connection information.
+Set these environment variables to provide Redis connection information:
 
-- `ACORN_ALARM_PUSH_REDIS_HOST`   (default `localhost`)
-- `ACORN_ALARM_PUSH_REDIS_PORT`   (default `6379`)
+- `EPICS_ALARM_PUSH_REDIS_HOST`   (default `localhost`)
+- `EPICS_ALARM_PUSH_REDIS_PORT`   (default `6379`)
 
-The stream key may also be specified.
+The stream key may also be specified:
 
-- `ACORN_ALARM_PUSH_REDIS_STREAM` (default `acorn:alarms`)
+- `EPICS_ALARM_PUSH_REDIS_STREAM` (default `acorn:alarms`)
+
+Logging must be explicitly enabled (set to a value from `errlogSevEnum`):
+
+- `EPICS_ALARM_PUSH_LOG_SEVERITY` (default undefined)
 
 ## IOC Integration
 
