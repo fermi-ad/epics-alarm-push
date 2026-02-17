@@ -13,18 +13,19 @@ static uint LOG_SEVERITY = 0;
 static char REDIS_STREAM[64] = { 0 };
 static redisContext* REDIS_CTX = 0;
 
-#define ERRLOG(sev, ...) ((uint)sev < LOG_SEVERITY ? 0 : errlogSevPrintf(sev, __VA_ARGS__))
+#define ERRLOG(sev, fmt, ...) ((uint)sev < LOG_SEVERITY ? 0 : errlogSevPrintf(sev, ANSI_MAGENTA(fmt) __VA_OPT__(,) __VA_ARGS__))
+#define ADDLOG(sev, fmt, ...) ((uint)sev < LOG_SEVERITY ? 0 : errlogPrintf(ANSI_MAGENTA(fmt) __VA_OPT__(,) __VA_ARGS__))
 
 static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, db_field_log* pfl)
 {
   if (chan && chan->addr.precord && pfl)
   {
-    ERRLOG(errlogInfo, "\nredis %p | stream %s | chan %s | recd %s | stat %i | sevr %i",
+    ERRLOG(errlogInfo, "redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i",
         REDIS_CTX, REDIS_STREAM, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
     if (pfl->amsg[0])
-      { ERRLOG(errlogInfo, " | amsg %s\n", pfl->amsg); }
+      { ADDLOG(errlogInfo, " | amsg %s\n", pfl->amsg); }
     else
-      { ERRLOG(errlogInfo, "\n"); }
+      { ADDLOG(errlogInfo, "\n"); }
 
     if (REDIS_CTX)
     {
@@ -79,6 +80,7 @@ static long init_device(int pass)
     char log_sev_str[16];
     envGetConfigParam(&envp, sizeof(log_sev_str), log_sev_str);
     LOG_SEVERITY = (uint)atoi(log_sev_str);
+    errlogPrintf(ANSI_MAGENTA("LOG_SEVERITY %u\n"), LOG_SEVERITY);
 
     strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_STREAM", sizeof(env_key));
     strncpy(env_def, "acorn:alarms", sizeof(env_def));
@@ -97,11 +99,11 @@ static long init_device(int pass)
 
     REDIS_CTX = redisConnect(redis_host, redis_port);
     if (REDIS_CTX == 0)
-      { ERRLOG(errlogMajor, "redis host %s | port %i | context %p", redis_host, redis_port, REDIS_CTX); }
+      { ERRLOG(errlogMajor, "redis host %s | port %i | context %p\n", redis_host, redis_port, REDIS_CTX); }
     else if (REDIS_CTX->errstr[0])
-      { ERRLOG(errlogMajor, "redis host %s | port %i | context %p | %s", redis_host, redis_port, REDIS_CTX, REDIS_CTX->errstr); }
+      { ERRLOG(errlogMajor, "redis host %s | port %i | context %p | %s\n", redis_host, redis_port, REDIS_CTX, REDIS_CTX->errstr); }
     else
-      { ERRLOG(errlogInfo, "redis host %s | port %i | context %p", redis_host, redis_port, REDIS_CTX); }
+      { ERRLOG(errlogInfo, "redis host %s | port %i | context %p\n", redis_host, redis_port, REDIS_CTX); }
 
     auto ctx = db_init_events();
     auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);
@@ -117,7 +119,7 @@ static long init_device(int pass)
 
           auto chn = dbChannelCreate(ent.precnode->recordname);
           auto alm = db_add_event(ctx, chn, my_alarm_func, 0, DBE_ALARM);
-          ERRLOG(errlogInfo, "chn %p | alm %p\n", chn, alm);
+          ERRLOG(errlogMinor, "record %s | chn %p | alm %p\n", ent.precnode ? ent.precnode->recordname : 0, chn, alm);
 
           db_event_enable(alm);
       }
