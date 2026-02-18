@@ -1,3 +1,4 @@
-#  dbracey 2026 Fermilab
 
+# dummy to cause the device initialization to be called
+# no records should be declared with this device support
 device(ai, CONSTANT, alarmPushDevice, "AlarmPush")

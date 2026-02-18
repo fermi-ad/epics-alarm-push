@@ -13,8 +13,9 @@ static uint LOG_SEVERITY = 0;
 static char REDIS_STREAM[64] = { 0 };
 static redisContext* REDIS_CTX = 0;
 
-#define ERRLOG(sev, fmt, ...) ((uint)sev < LOG_SEVERITY ? 0 : errlogSevPrintf(sev, ANSI_MAGENTA(fmt) __VA_OPT__(,) __VA_ARGS__))
-#define ADDLOG(sev, fmt, ...) ((uint)sev < LOG_SEVERITY ? 0 : errlogPrintf(ANSI_MAGENTA(fmt) __VA_OPT__(,) __VA_ARGS__))
+//  defining our own version of errlogSevPrintf so that we can start with
+//  no logging by default and only log at the level defined by our env var
+#define ERRLOG(sev, fmt, ...) ((uint)sev < LOG_SEVERITY ? 0 : errlogPrintf(ANSI_MAGENTA(fmt) __VA_OPT__(,) __VA_ARGS__))
 
 static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, db_field_log* pfl)
 {
@@ -23,9 +24,9 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
     ERRLOG(errlogInfo, "redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i",
         REDIS_CTX, REDIS_STREAM, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
     if (pfl->amsg[0])
-      { ADDLOG(errlogInfo, " | amsg %s\n", pfl->amsg); }
+      { ERRLOG(errlogInfo, " | amsg %s\n", pfl->amsg); }
     else
-      { ADDLOG(errlogInfo, "\n"); }
+      { ERRLOG(errlogInfo, "\n"); }
 
     if (REDIS_CTX)
     {
@@ -36,15 +37,26 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
           ? epicsAlarmSeverityStrings[pfl->sevr]
           : epicsAlarmSeverityStrings[epicsSevInvalid];
 
-      char cmd[1024];
-      sprintf(cmd, "XADD %s MAXLEN 99999 * device '%s' type %s severity %s",
-          REDIS_STREAM, chan->addr.precord->name, stat_str, sevr_str);
-
-      //  TODO: add a message if none is present on pfl->amsg
+      char msg[64];
       if (pfl->amsg[0])
-        { strcat(cmd, " message '"); strcat(cmd, pfl->amsg); strcat(cmd, "'"); }
+        { strncpy(msg, pfl->amsg, sizeof(msg) - 1);}
+      else
+        { snprintf(msg, sizeof(msg) - 1, "%s alarm is %s", stat_str, sevr_str); }
 
-      redisReply* reply = (redisReply*)redisCommand(REDIS_CTX, cmd);
+      redisReply* reply = 0;
+
+      if (pfl->stat == NO_ALARM && pfl->sevr == NO_ALARM)
+      {
+        reply = (redisReply*)redisCommand(REDIS_CTX,
+            "XADD %s MAXLEN 99999 * device %s type %s severity %s",
+            REDIS_STREAM, chan->addr.precord->name, stat_str, sevr_str);
+      }
+      else
+      {
+        reply = (redisReply*)redisCommand(REDIS_CTX,
+            "XADD %s MAXLEN 99999 * device %s type %s severity %s message %s",
+            REDIS_STREAM, chan->addr.precord->name, stat_str, sevr_str, msg);
+      }
 
       if (reply == 0 || reply->type == REDIS_REPLY_ERROR)
       {
