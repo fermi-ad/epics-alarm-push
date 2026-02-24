@@ -8,20 +8,18 @@ include $(TOP)/configure/CONFIG
 #==================================================
 # build a support library
 
-LIBRARY_IOC += alarmPush
+LIBRARY_IOC += AlarmPush
 
-# install alarmPush.dbd into <top>/dbd
-DBD += alarmPush.dbd
+# install AlarmPush.dbd into <top>/dbd
+DBD += AlarmPush.dbd
 
 # note this needs to have the -I
-alarmPush_INCLUDES += -I$(TOP)/hiredis
+AlarmPush_INCLUDES += -I../../../hiredisSup/hiredis
 
-alarmPush_SRCS += alarmPush.cpp
+AlarmPush_SRCS += AlarmPush.cpp
 
-alarmPush_LIBS += $(EPICS_BASE_IOC_LIBS)
-alarmPush_LIBS += hiredis
-
-hiredis_DIR = $(TOP)/hiredis
+AlarmPush_LIBS += $(EPICS_BASE_IOC_LIBS)
+AlarmPush_LIBS += hiredis
 
 USR_CPPFLAGS += -DUSE_TYPED_RSET
 

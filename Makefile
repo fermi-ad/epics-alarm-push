@@ -1,19 +1,32 @@
-.PHONY: all install buildInstall rebuild clean archclean realclean uninstall realuninstall distclean cvsclean help
+# Makefile at top of application tree
+TOP = .
+include $(TOP)/configure/CONFIG
 
-# make hiredis static only so epics linking has no choice
-all:
-	$(MAKE) -C hiredis static
-	$(MAKE) -f Makefile.Epics $(MAKECMDGOALS)
+# Directories to build, any order
+DIRS += configure
+DIRS += $(wildcard *Sup)
+DIRS += $(wildcard *App)
+DIRS += $(wildcard *Top)
+DIRS += $(wildcard iocBoot)
 
-# dont allow hiredis to install
-install buildInstall rebuild: all
+# The build order is controlled by these dependency rules:
 
-# hiredis doesnt know epics clean targets
-clean:
-	$(MAKE) -C hiredis clean
-	$(MAKE) -f Makefile.Epics $(MAKECMDGOALS)
+# All dirs except configure depend on configure
+$(foreach dir, $(filter-out configure, $(DIRS)), \
+    $(eval $(dir)_DEPEND_DIRS += configure))
 
-archclean realclean uninstall realuninstall distclean cvsclean: clean
+# Any *App dirs depend on all *Sup dirs
+$(foreach dir, $(filter %App, $(DIRS)), \
+    $(eval $(dir)_DEPEND_DIRS += $(filter %Sup, $(DIRS))))
 
-help:
-	$(MAKE) -f Makefile.Epics $(MAKECMDGOALS)
+# Any *Top dirs depend on all *Sup and *App dirs
+$(foreach dir, $(filter %Top, $(DIRS)), \
+    $(eval $(dir)_DEPEND_DIRS += $(filter %Sup %App, $(DIRS))))
+
+# iocBoot depends on all *App dirs
+iocBoot_DEPEND_DIRS += $(filter %App,$(DIRS))
+
+# Add any additional dependency rules here:
+AlarmPushApp_DEPEND_DIRS += hiredisSup
+
+include $(TOP)/configure/RULES_TOP

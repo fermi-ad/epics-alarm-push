@@ -1,4 +1,4 @@
 
 # dummy to cause the device initialization to be called
 # no records should be declared with this device support
-device(ai, CONSTANT, alarmPushDevice, "AlarmPush")
+device(ai, CONSTANT, AlarmPushDevice, "AlarmPush")

@@ -15,7 +15,8 @@ static redisContext* REDIS_CTX = 0;
 
 //  defining our own version of errlogSevPrintf so that we can start with
 //  no logging by default and only log at the level defined by our env var
-#define ERRLOG(sev, fmt, ...) ((uint)sev < LOG_SEVERITY ? 0 : errlogPrintf(ANSI_MAGENTA(fmt) __VA_OPT__(,) __VA_ARGS__))
+// #define ERRLOG(sev, fmt, ...) ((uint)sev < LOG_SEVERITY ? 0 : errlogPrintf(ANSI_MAGENTA(fmt) __VA_OPT__(,) __VA_ARGS__))
+#define ERRLOG(sev, ...) ((uint)sev < LOG_SEVERITY ? 0 : errlogPrintf(__VA_ARGS__))
 
 static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, db_field_log* pfl)
 {
@@ -140,8 +141,8 @@ static long init_device(int pass)
   return 0;
 }
 
-static dset alarmPushDevice = { 4, 0, (DEVSUPFUN)init_device, 0, 0 };
+static dset AlarmPushDevice = { 4, 0, (DEVSUPFUN)init_device, 0, 0 };
 
 #define EPICS_EXPORT_ADDRESS(...) epicsExportAddress(__VA_ARGS__);
 
-EPICS_EXPORT_ADDRESS(dset, alarmPushDevice)
+EPICS_EXPORT_ADDRESS(dset, AlarmPushDevice)

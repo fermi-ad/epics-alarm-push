@@ -21,20 +21,20 @@ Logging must be explicitly enabled (set to a value from `errlogSevEnum`):
 
 In the IOC's `configure/RELEASE` or `configure/RELEASE.local`:
 
-- Add the path for the alarmPush top directory:
+- Add the path for the AlarmPush top directory:
 ```
-  ALARM_PUSH=/home/dbracey/dbracey-ioc-alarm-push-proto3
+  ALARM_PUSH=$(EPICS_SUPPORT)/AlarmPush
 ```
 
 In the IOC's `myIOCApp/src/Makefile`:
 
-- Add the database definition file for alarmPush:
+- Add the database definition file for AlarmPush:
 ```
-  myIOC_DBD += alarmPush.dbd
+  myIOC_DBD += AlarmPush.dbd
 ```
-- Add the support module library for alarmPush:
+- Add the support module library for AlarmPush:
 ```
-  myIOC_LIBS += alarmPush
+  myIOC_LIBS += AlarmPush
 ```
 
 ## Theory of Operation
