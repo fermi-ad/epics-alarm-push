@@ -1,6 +1,6 @@
 # epics-alarm-push
 
-EPICS alarm pusher using Redis in an IOC support module
+PV alarm pusher using Redis in an IOC support module
 
 ## Environment Variables
 
@@ -44,6 +44,6 @@ In the IOC's `myIOCApp/src/Makefile`:
 Key      | Example Value           | Description
 ---------|-------------------------|------------
 device   | acq2106_347:SFP:1:TEMP  | PV name
-type     | HIHI                    | EPICS [alarm status string](https://docs.epics-controls.org/projects/base/en/r7.0.9/menuAlarmStat.html) or ANALOG or DIGITAL or INVALID
+type     | HIHI                    | EPICS [alarm status string](https://docs.epics-controls.org/projects/base/en/r7.0.9/menuAlarmStat.html)
 severity | MAJOR                   | EPICS [alarm severity string](https://docs.epics-controls.org/projects/base/en/r7.0.9/menuAlarmSevr.html)
 message  | value has exceeded HIHI | Text describing the alarm specifics
