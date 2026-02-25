@@ -49,13 +49,13 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
       if (pfl->stat == NO_ALARM && pfl->sevr == NO_ALARM)
       {
         reply = (redisReply*)redisCommand(REDIS_CTX,
-            "XADD %s MAXLEN 99999 * device %s type %s severity %s",
+            "XADD %s MAXLEN 99999 * device %s source %s severity %s",
             REDIS_STREAM, chan->addr.precord->name, stat_str, sevr_str);
       }
       else
       {
         reply = (redisReply*)redisCommand(REDIS_CTX,
-            "XADD %s MAXLEN 99999 * device %s type %s severity %s message %s",
+            "XADD %s MAXLEN 99999 * device %s source %s severity %s message %s",
             REDIS_STREAM, chan->addr.precord->name, stat_str, sevr_str, msg);
       }
 
