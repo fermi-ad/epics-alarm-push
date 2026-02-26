@@ -5,17 +5,23 @@
 #include <envDefs.h>
 #include <alarm.h>
 
-#include <string.h>
+#include <map>
+#include <string>
+#include <cstring>
 
 #include "hiredis.h"
+
+using namespace std;
 
 static uint LOG_SEVERITY = 0;
 static char REDIS_STREAM[64] = { 0 };
 static redisContext* REDIS_CTX = 0;
 
+struct PrevAlarm { short stat, sevr; };
+static map<const string, PrevAlarm> PREV_ALARM;
+
 //  defining our own version of errlogSevPrintf so that we can start with
 //  no logging by default and only log at the level defined by our env var
-// #define ERRLOG(sev, fmt, ...) ((uint)sev < LOG_SEVERITY ? 0 : errlogPrintf(ANSI_MAGENTA(fmt) __VA_OPT__(,) __VA_ARGS__))
 #define ERRLOG(sev, ...) ((uint)sev < LOG_SEVERITY ? 0 : errlogPrintf(__VA_ARGS__))
 
 static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, db_field_log* pfl)
@@ -29,20 +35,30 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
     else
       { ERRLOG(errlogInfo, "\n"); }
 
+    //  return early if new alarm is same stat/sevr as prev
+    PrevAlarm prev;
+    if (PREV_ALARM.count(chan->addr.precord->name))
+    {
+      prev = PREV_ALARM.at(chan->addr.precord->name);
+      if (prev.stat == pfl->stat && prev.sevr == pfl->sevr) return;
+    }
+    //  remember new stat/sevr to test for dupes next time
+    prev.stat = pfl->stat; prev.sevr = pfl->sevr;
+    PREV_ALARM[chan->addr.precord->name] = prev;
+
     if (REDIS_CTX)
     {
-      const char* stat_str = (pfl->stat < ALARM_NSTATUS)
+      string stat = (pfl->stat < ALARM_NSTATUS)
           ? epicsAlarmConditionStrings[pfl->stat]
           : "INVALID";
-      const char* sevr_str = (pfl->sevr < ALARM_NSEV)
+
+      string sevr = (pfl->sevr < ALARM_NSEV)
           ? epicsAlarmSeverityStrings[pfl->sevr]
           : epicsAlarmSeverityStrings[epicsSevInvalid];
 
-      char msg[64];
-      if (pfl->amsg[0])
-        { strncpy(msg, pfl->amsg, sizeof(msg) - 1);}
-      else
-        { snprintf(msg, sizeof(msg) - 1, "%s alarm is %s", stat_str, sevr_str); }
+      string amsg = (pfl->amsg[0])
+          ? pfl->amsg
+          : stat + " alarm is " + sevr;
 
       redisReply* reply = 0;
 
@@ -50,13 +66,13 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
       {
         reply = (redisReply*)redisCommand(REDIS_CTX,
             "XADD %s MAXLEN 99999 * device %s source %s severity %s",
-            REDIS_STREAM, chan->addr.precord->name, stat_str, sevr_str);
+            REDIS_STREAM, chan->addr.precord->name, stat.c_str(), sevr.c_str());
       }
       else
       {
         reply = (redisReply*)redisCommand(REDIS_CTX,
             "XADD %s MAXLEN 99999 * device %s source %s severity %s message %s",
-            REDIS_STREAM, chan->addr.precord->name, stat_str, sevr_str, msg);
+            REDIS_STREAM, chan->addr.precord->name, stat.c_str(), sevr.c_str(), amsg.c_str());
       }
 
       if (reply == 0 || reply->type == REDIS_REPLY_ERROR)
