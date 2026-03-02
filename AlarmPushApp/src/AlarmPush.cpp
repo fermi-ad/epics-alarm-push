@@ -22,25 +22,36 @@ static map<const string, PrevAlarm> PREV_ALARM;
 
 //  defining our own version of errlogSevPrintf so that we can start with
 //  no logging by default and only log at the level defined by our env var
-#define ERRLOG(sev, ...) ((uint)sev < LOG_SEVERITY ? 0 : errlogPrintf(__VA_ARGS__))
+#define LOGERR(fmt, ...) (LOG_SEVERITY <= (uint)errlogMajor ? errlogPrintf(ANSI_RED("AlarmPush: " fmt "\n"), __VA_ARGS__) : 0)
+#define LOGWRN(fmt, ...) (LOG_SEVERITY <= (uint)errlogMinor ? errlogPrintf(ANSI_YELLOW("AlarmPush: " fmt "\n"), __VA_ARGS__) : 0)
+#define LOGINF(fmt, ...) (LOG_SEVERITY <= (uint)errlogInfo  ? errlogPrintf("AlarmPush: " fmt "\n", __VA_ARGS__) : 0)
 
 static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, db_field_log* pfl)
 {
   if (chan && chan->addr.precord && pfl)
   {
-    ERRLOG(errlogInfo, "redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i",
-        REDIS_CTX, REDIS_STREAM, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
     if (pfl->amsg[0])
-      { ERRLOG(errlogInfo, " | amsg %s\n", pfl->amsg); }
+    {
+      LOGINF("redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i | amsg %s",
+          REDIS_CTX, REDIS_STREAM, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr, pfl->amsg);
+    }
     else
-      { ERRLOG(errlogInfo, "\n"); }
+    {
+      LOGINF("redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i",
+          REDIS_CTX, REDIS_STREAM, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
+    }
 
-    //  return early if new alarm is same stat/sevr as prev
     PrevAlarm prev;
     if (PREV_ALARM.count(chan->addr.precord->name))
     {
+      //  return early if new alarm is same stat/sevr as prev
       prev = PREV_ALARM.at(chan->addr.precord->name);
-      if (prev.stat == pfl->stat && prev.sevr == pfl->sevr) return;
+      if (pfl->stat == prev.stat && pfl->sevr == prev.sevr) return;
+    }
+    else
+    {
+      //  return early if new alarm is NO_ALARM and no prev
+      if (pfl->stat == NO_ALARM && pfl->sevr == NO_ALARM) return;
     }
     //  remember new stat/sevr to test for dupes next time
     prev.stat = pfl->stat; prev.sevr = pfl->sevr;
@@ -77,20 +88,20 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
 
       if (reply == 0 || reply->type == REDIS_REPLY_ERROR)
       {
-        static time_t prev = 0;   // throttle reconnects
+        static time_t PREV = 0;   // throttle reconnects
         time_t curr = time(0);
 
-        if (curr > prev)
+        if (curr > PREV)
         {
-          prev = curr;
+          PREV = curr;
           int result = redisReconnect(REDIS_CTX);
-          ERRLOG(errlogMajor, "error %s | %s | reconnect %i\n", reply ? reply->str : 0, REDIS_CTX->errstr, result);
+          LOGERR("error %s | %s | reconnect %i", reply ? reply->str : 0, REDIS_CTX->errstr, result);
         }
         else
-          { ERRLOG(errlogMinor, "error %s | %s | defer\n", reply ? reply->str : 0, REDIS_CTX->errstr); }
+          { LOGWRN("error %s | %s | defer", reply ? reply->str : 0, REDIS_CTX->errstr); }
       }
       else
-        { ERRLOG(errlogInfo, "reply %s\n", reply->str); }
+        { LOGINF("reply %s", reply->str); }
 
       freeReplyObject(reply);   //  ok to free 0
     }
@@ -109,7 +120,7 @@ static long init_device(int pass)
     char log_sev_str[16];
     envGetConfigParam(&envp, sizeof(log_sev_str), log_sev_str);
     LOG_SEVERITY = (uint)atoi(log_sev_str);
-    errlogPrintf(ANSI_MAGENTA("LOG_SEVERITY %u\n"), LOG_SEVERITY);
+    errlogPrintf("EPICS_ALARM_PUSH_LOG_SEVERITY %u\n", LOG_SEVERITY);
 
     strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_STREAM", sizeof(env_key));
     strncpy(env_def, "acorn:alarms", sizeof(env_def));
@@ -128,27 +139,27 @@ static long init_device(int pass)
 
     REDIS_CTX = redisConnect(redis_host, redis_port);
     if (REDIS_CTX == 0)
-      { ERRLOG(errlogMajor, "redis host %s | port %i | context %p\n", redis_host, redis_port, REDIS_CTX); }
+      { LOGERR("redis host %s | port %i | context %p", redis_host, redis_port, REDIS_CTX); }
     else if (REDIS_CTX->errstr[0])
-      { ERRLOG(errlogMajor, "redis host %s | port %i | context %p | %s\n", redis_host, redis_port, REDIS_CTX, REDIS_CTX->errstr); }
+      { LOGWRN("redis host %s | port %i | context %p | %s", redis_host, redis_port, REDIS_CTX, REDIS_CTX->errstr); }
     else
-      { ERRLOG(errlogInfo, "redis host %s | port %i | context %p\n", redis_host, redis_port, REDIS_CTX); }
+      { LOGINF("redis host %s | port %i | context %p", redis_host, redis_port, REDIS_CTX); }
 
     auto ctx = db_init_events();
     auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);
-    ERRLOG(errlogInfo, "ctx %p | dse %i\n", ctx, dse);
+    LOGINF("ctx %p | dse %i", ctx, dse);
 
     DBENTRY ent; dbInitEntry(pdbbase, &ent);
     for (auto st1 = dbFirstRecordType(&ent); st1 == 0; st1 = dbNextRecordType(&ent))
     {
       for (auto st2 = dbFirstRecord(&ent); st2 == 0; st2 = dbNextRecord(&ent))
       {
-          ERRLOG(errlogInfo, "dbRecordType %p | typename %s\n", ent.precordType, ent.precordType ? ent.precordType->name : 0);
-          ERRLOG(errlogInfo, "dbRecordNode %p | recordname %s\n", ent.precnode, ent.precnode ? ent.precnode->recordname : 0);
+          LOGINF("dbRecordType %p | typename %s", ent.precordType, ent.precordType ? ent.precordType->name : 0);
+          LOGINF("dbRecordNode %p | recordname %s", ent.precnode, ent.precnode ? ent.precnode->recordname : 0);
 
           auto chn = dbChannelCreate(ent.precnode->recordname);
           auto alm = db_add_event(ctx, chn, my_alarm_func, 0, DBE_ALARM);
-          ERRLOG(errlogMinor, "record %s | chn %p | alm %p\n", ent.precnode ? ent.precnode->recordname : 0, chn, alm);
+          LOGWRN("record %s | chn %p | alm %p", ent.precnode ? ent.precnode->recordname : 0, chn, alm);
 
           db_event_enable(alm);
       }
