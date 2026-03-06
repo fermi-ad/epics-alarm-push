@@ -18,7 +18,6 @@ static char REDIS_STREAM[64] = { 0 };
 static redisContext* REDIS_CTX = 0;
 
 struct PrevAlarm { short stat, sevr; };
-static map<const string, PrevAlarm> PREV_ALARM;
 
 //  defining our own version of errlogSevPrintf so that we can start with
 //  no logging by default and only log at the level defined by our env var
@@ -41,6 +40,7 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
           REDIS_CTX, REDIS_STREAM, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
     }
 
+    static map<const string, PrevAlarm> PREV_ALARM;
     PrevAlarm prev;
     if (PREV_ALARM.count(chan->addr.precord->name))
     {
@@ -117,7 +117,7 @@ static long init_device(int pass)
 
     strncpy(env_key, "EPICS_ALARM_PUSH_LOG_SEVERITY", sizeof(env_key));
     strncpy(env_def, "-1", sizeof(env_def));
-    char log_sev_str[16];
+    char log_sev_str[16] = { 0 };
     envGetConfigParam(&envp, sizeof(log_sev_str), log_sev_str);
     LOG_SEVERITY = (uint)atoi(log_sev_str);
     errlogPrintf("EPICS_ALARM_PUSH_LOG_SEVERITY %u\n", LOG_SEVERITY);
@@ -127,13 +127,21 @@ static long init_device(int pass)
     envGetConfigParam(&envp, sizeof(REDIS_STREAM), REDIS_STREAM);
 
     strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_HOST", sizeof(env_key));
-    strncpy(env_def, "localhost", sizeof(env_def));
-    char redis_host[64];
+    env_def[0] = 0;   //  no default
+    char redis_host[64] = { 0 };
     envGetConfigParam(&envp, sizeof(redis_host), redis_host);
 
+    //  if no EPICS_ALARM_PUSH_REDIS_HOST was found, go no further
+    //  this will prevent the DB event hooks from being registered
+    //  so no alarm push functionality will occur
+    if (strlen(redis_host) == 0)
+    {
+      errlogPrintf("EPICS_ALARM_PUSH_REDIS_HOST not found - AlarmPush disabled\n");
+      return 0;
+    }
     strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_PORT", sizeof(env_key));
     strncpy(env_def, "6379", sizeof(env_def));
-    char redis_port_str[16];
+    char redis_port_str[16] = { 0 };
     envGetConfigParam(&envp, sizeof(redis_port_str), redis_port_str);
     int redis_port = atoi(redis_port_str);
 
