@@ -6,7 +6,7 @@ PV alarm pusher using Redis in an IOC support module
 
 Set these environment variables to provide Redis connection information:
 
-- `EPICS_ALARM_PUSH_REDIS_HOST`   (no default (alarm push disabled if not defined))
+- `EPICS_ALARM_PUSH_REDIS_HOST`   (no default - alarm push disabled if not defined)
 - `EPICS_ALARM_PUSH_REDIS_PORT`   (default `6379`)
 
 The stream key may also be specified:
@@ -15,7 +15,7 @@ The stream key may also be specified:
 
 Logging must be explicitly enabled (set to a value from `errlogSevEnum`):
 
-- `EPICS_ALARM_PUSH_LOG_SEVERITY` (default `-1` (no logging))
+- `EPICS_ALARM_PUSH_LOG_SEVERITY` (default undefined)
 
 ## IOC Integration
 
