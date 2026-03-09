@@ -15,7 +15,7 @@ The stream key may also be specified:
 
 Logging must be explicitly enabled (set to a value from `errlogSevEnum`):
 
-- `EPICS_ALARM_PUSH_LOG_SEVERITY` (default -1 (no logging))
+- `EPICS_ALARM_PUSH_LOG_SEVERITY` (default `-1` (no logging))
 
 ## IOC Integration
 
