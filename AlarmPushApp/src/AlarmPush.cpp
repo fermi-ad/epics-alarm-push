@@ -8,6 +8,7 @@
 #include <map>
 #include <string>
 #include <cstring>
+#include <ctime>
 
 #include "hiredis.h"
 
@@ -17,7 +18,7 @@ static uint LOG_SEVERITY = 0;
 static char REDIS_STREAM[64] = { 0 };
 static redisContext* REDIS_CTX = 0;
 
-struct PrevAlarm { short stat, sevr; };
+struct PrevAlarm { unsigned short stat, sevr; };
 
 //  defining our own version of errlogSevPrintf so that we can start with
 //  no logging by default and only log at the level defined by our env var
@@ -41,11 +42,10 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
     }
 
     static map<const string, PrevAlarm> PREV_ALARM;
-    PrevAlarm prev;
     if (PREV_ALARM.count(chan->addr.precord->name))
     {
       //  return early if new alarm is same stat/sevr as prev
-      prev = PREV_ALARM.at(chan->addr.precord->name);
+      PrevAlarm prev = PREV_ALARM.at(chan->addr.precord->name);
       if (pfl->stat == prev.stat && pfl->sevr == prev.sevr) return;
     }
     else
@@ -54,7 +54,7 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
       if (pfl->stat == NO_ALARM && pfl->sevr == NO_ALARM) return;
     }
     //  remember new stat/sevr to test for dupes next time
-    prev.stat = pfl->stat; prev.sevr = pfl->sevr;
+    PrevAlarm prev = { .stat = pfl->stat, .sevr = pfl->sevr };
     PREV_ALARM[chan->addr.precord->name] = prev;
 
     if (REDIS_CTX)
@@ -71,19 +71,33 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
           ? pfl->amsg
           : stat + " alarm is " + sevr;
 
-      redisReply* reply = 0;
+      string stmp = to_string(time(0));
 
+      string detl;
+      switch (pfl->stat)
+      {
+        case epicsAlarmHigh: case epicsAlarmHiHi: detl = "HIGH"; break;
+        case epicsAlarmLow:  case epicsAlarmLoLo: detl = "LOW";  break;
+      }
+
+      redisReply* reply = 0;
       if (pfl->stat == NO_ALARM && pfl->sevr == NO_ALARM)
       {
         reply = (redisReply*)redisCommand(REDIS_CTX,
-            "XADD %s MAXLEN 99999 * device %s source %s severity %s",
-            REDIS_STREAM, chan->addr.precord->name, stat.c_str(), sevr.c_str());
+            "XADD %s MAXLEN 99999 * device %s source %s severity %s timestamp %s",
+            REDIS_STREAM, chan->addr.precord->name, stat.c_str(), sevr.c_str(), stmp.c_str());
+      }
+      else if (detl.empty())
+      {
+        reply = (redisReply*)redisCommand(REDIS_CTX,
+            "XADD %s MAXLEN 99999 * device %s source %s severity %s message %s timestamp %s",
+            REDIS_STREAM, chan->addr.precord->name, stat.c_str(), sevr.c_str(), amsg.c_str(), stmp.c_str());
       }
       else
       {
         reply = (redisReply*)redisCommand(REDIS_CTX,
-            "XADD %s MAXLEN 99999 * device %s source %s severity %s message %s",
-            REDIS_STREAM, chan->addr.precord->name, stat.c_str(), sevr.c_str(), amsg.c_str());
+            "XADD %s MAXLEN 99999 * device %s source %s severity %s message %s timestamp %s detail %s",
+            REDIS_STREAM, chan->addr.precord->name, stat.c_str(), sevr.c_str(), amsg.c_str(), stmp.c_str(), detl.c_str());
       }
 
       if (reply == 0 || reply->type == REDIS_REPLY_ERROR)
