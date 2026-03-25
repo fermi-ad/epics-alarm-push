@@ -73,13 +73,6 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
 
       string stmp = to_string(time(0));
 
-      string detl;
-      switch (pfl->stat)
-      {
-        case epicsAlarmHigh: case epicsAlarmHiHi: detl = "HIGH"; break;
-        case epicsAlarmLow:  case epicsAlarmLoLo: detl = "LOW";  break;
-      }
-
       redisReply* reply = 0;
       if (pfl->stat == NO_ALARM && pfl->sevr == NO_ALARM)
       {
@@ -87,17 +80,11 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
             "XADD %s MAXLEN 99999 * device %s source %s severity %s timestamp %s",
             REDIS_STREAM, chan->addr.precord->name, stat.c_str(), sevr.c_str(), stmp.c_str());
       }
-      else if (detl.empty())
+      else
       {
         reply = (redisReply*)redisCommand(REDIS_CTX,
             "XADD %s MAXLEN 99999 * device %s source %s severity %s message %s timestamp %s",
             REDIS_STREAM, chan->addr.precord->name, stat.c_str(), sevr.c_str(), amsg.c_str(), stmp.c_str());
-      }
-      else
-      {
-        reply = (redisReply*)redisCommand(REDIS_CTX,
-            "XADD %s MAXLEN 99999 * device %s source %s severity %s message %s timestamp %s detail %s",
-            REDIS_STREAM, chan->addr.precord->name, stat.c_str(), sevr.c_str(), amsg.c_str(), stmp.c_str(), detl.c_str());
       }
 
       if (reply == 0 || reply->type == REDIS_REPLY_ERROR)
