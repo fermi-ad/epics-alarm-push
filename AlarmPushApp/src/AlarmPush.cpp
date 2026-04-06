@@ -59,32 +59,34 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
 
     if (REDIS_CTX)
     {
-      string stat = (pfl->stat < ALARM_NSTATUS)
+      string status = (pfl->stat < ALARM_NSTATUS)
           ? epicsAlarmConditionStrings[pfl->stat]
           : "INVALID";
 
-      string sevr = (pfl->sevr < ALARM_NSEV)
+      string severity = (pfl->sevr < ALARM_NSEV)
           ? epicsAlarmSeverityStrings[pfl->sevr]
           : epicsAlarmSeverityStrings[epicsSevInvalid];
 
-      string amsg = (pfl->amsg[0])
+      string message = (pfl->amsg[0])
           ? pfl->amsg
-          : stat + " alarm is " + sevr;
+          : status + " alarm is " + severity;
 
-      string stmp = to_string(time(0));
+      string timestamp = to_string(time(0));
+
+      string detail = status;
 
       redisReply* reply = 0;
       if (pfl->stat == NO_ALARM && pfl->sevr == NO_ALARM)
       {
         reply = (redisReply*)redisCommand(REDIS_CTX,
-            "XADD %s MAXLEN 99999 * device %s source %s severity %s timestamp %s",
-            REDIS_STREAM, chan->addr.precord->name, stat.c_str(), sevr.c_str(), stmp.c_str());
+            "XADD %s MAXLEN 99999 * device %s source %s severity %s timestamp %s detail %s",
+            REDIS_STREAM, chan->addr.precord->name, status.c_str(), severity.c_str(), timestamp.c_str(), detail.c_str());
       }
       else
       {
         reply = (redisReply*)redisCommand(REDIS_CTX,
-            "XADD %s MAXLEN 99999 * device %s source %s severity %s message %s timestamp %s",
-            REDIS_STREAM, chan->addr.precord->name, stat.c_str(), sevr.c_str(), amsg.c_str(), stmp.c_str());
+            "XADD %s MAXLEN 99999 * device %s source %s severity %s timestamp %s detail %s message %s",
+            REDIS_STREAM, chan->addr.precord->name, status.c_str(), severity.c_str(), timestamp.c_str(), detail.c_str(), message.c_str());
       }
 
       if (reply == 0 || reply->type == REDIS_REPLY_ERROR)
