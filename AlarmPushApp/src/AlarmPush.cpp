@@ -10,7 +10,7 @@
 #include <cstring>
 #include <ctime>
 
-#include "hiredis.h"
+#include "hiredis/hiredis.h"
 
 using namespace std;
 
@@ -111,9 +111,9 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
   }
 }
 
-static long init_device(int pass)
+static long init_driver()
 {
-  if (pass == 1 && REDIS_CTX == 0)
+  if (REDIS_CTX == 0)
   {
     char env_key[64], env_def[64];
     ENV_PARAM envp = { env_key, env_def };
@@ -179,8 +179,8 @@ static long init_device(int pass)
   return 0;
 }
 
-static dset AlarmPushDevice = { 4, 0, (DEVSUPFUN)init_device, 0, 0 };
+static drvet AlarmPushDriver = { 2, 0, init_driver };
 
 #define EPICS_EXPORT_ADDRESS(...) epicsExportAddress(__VA_ARGS__);
 
-EPICS_EXPORT_ADDRESS(dset, AlarmPushDevice)
+EPICS_EXPORT_ADDRESS(drvet, AlarmPushDriver)
