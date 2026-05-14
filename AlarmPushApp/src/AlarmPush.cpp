@@ -30,22 +30,17 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
 {
   if (chan && chan->addr.precord && pfl)
   {
-    if (pfl->amsg[0])
-    {
-      LOGINF("redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i | amsg %s",
-          REDIS_CTX, REDIS_STREAM, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr, pfl->amsg);
-    }
-    else
-    {
-      LOGINF("redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i",
-          REDIS_CTX, REDIS_STREAM, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
-    }
+    LOGINF("redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i",
+        REDIS_CTX, REDIS_STREAM, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
+
+    string pvname = chan->name;
 
     static map<const string, PrevAlarm> PREV_ALARM;
-    if (PREV_ALARM.count(chan->addr.precord->name))
+    PrevAlarm prev;
+    if (PREV_ALARM.count(pvname))
     {
       //  return early if new alarm is same stat/sevr as prev
-      PrevAlarm prev = PREV_ALARM.at(chan->addr.precord->name);
+      prev = PREV_ALARM.at(pvname);
       if (pfl->stat == prev.stat && pfl->sevr == prev.sevr) return;
     }
     else
@@ -54,8 +49,8 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
       if (pfl->stat == NO_ALARM && pfl->sevr == NO_ALARM) return;
     }
     //  remember new stat/sevr to test for dupes next time
-    PrevAlarm prev = { .stat = pfl->stat, .sevr = pfl->sevr };
-    PREV_ALARM[chan->addr.precord->name] = prev;
+    prev.stat = pfl->stat; prev.sevr = pfl->sevr;
+    PREV_ALARM[pvname] = prev;
 
     if (REDIS_CTX)
     {
@@ -80,19 +75,19 @@ static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, 
       {
         reply = (redisReply*)redisCommand(REDIS_CTX,
             "XADD %s MAXLEN 99999 * device %s source %s severity %s timestamp %s detail %s",
-            REDIS_STREAM, chan->addr.precord->name, status.c_str(), severity.c_str(), timestamp.c_str(), detail.c_str());
+            REDIS_STREAM, pvname.c_str(), status.c_str(), severity.c_str(), timestamp.c_str(), detail.c_str());
       }
       else
       {
         reply = (redisReply*)redisCommand(REDIS_CTX,
             "XADD %s MAXLEN 99999 * device %s source %s severity %s timestamp %s detail %s message %s",
-            REDIS_STREAM, chan->addr.precord->name, status.c_str(), severity.c_str(), timestamp.c_str(), detail.c_str(), message.c_str());
+            REDIS_STREAM, pvname.c_str(), status.c_str(), severity.c_str(), timestamp.c_str(), detail.c_str(), message.c_str());
       }
 
       if (reply == 0 || reply->type == REDIS_REPLY_ERROR)
       {
-        static time_t PREV = 0;   // throttle reconnects
-        time_t curr = time(0);
+        static time_t PREV = 0;   //  throttle reconnects
+        time_t curr = time(0);    //  once per second
 
         if (curr > PREV)
         {
@@ -156,23 +151,31 @@ static long init_driver()
     else
       { LOGINF("redis host %s | port %i | context %p", redis_host, redis_port, REDIS_CTX); }
 
-    auto ctx = db_init_events();
-    auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);
-    LOGINF("ctx %p | dse %i", ctx, dse);
-
-    DBENTRY ent; dbInitEntry(pdbbase, &ent);
-    for (auto st1 = dbFirstRecordType(&ent); st1 == 0; st1 = dbNextRecordType(&ent))
+    //  if we didnt create a redis connection context then dont register DB event hooks
+    //  its ok if we got a context but theres no connection yet - we will reconnect above
+    //  but if we didnt even get a context object something is wrong so dont hook DB events
+    if (REDIS_CTX)
     {
-      for (auto st2 = dbFirstRecord(&ent); st2 == 0; st2 = dbNextRecord(&ent))
+      auto ctx = db_init_events();
+      auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);
+      LOGINF("ctx %p | dse %i", ctx, dse);
+
+      DBENTRY ent; dbInitEntry(pdbbase, &ent);
+      for (auto st1 = dbFirstRecordType(&ent); st1 == 0; st1 = dbNextRecordType(&ent))
       {
+        for (auto st2 = dbFirstRecord(&ent); st2 == 0; st2 = dbNextRecord(&ent))
+        {
           LOGINF("dbRecordType %p | typename %s", ent.precordType, ent.precordType ? ent.precordType->name : 0);
           LOGINF("dbRecordNode %p | recordname %s", ent.precnode, ent.precnode ? ent.precnode->recordname : 0);
+
+          //  TODO: further filtering based on record type? existence of alarm fields? other criteria?
 
           auto chn = dbChannelCreate(ent.precnode->recordname);
           auto alm = db_add_event(ctx, chn, my_alarm_func, 0, DBE_ALARM);
           LOGWRN("record %s | chn %p | alm %p", ent.precnode ? ent.precnode->recordname : 0, chn, alm);
 
           db_event_enable(alm);
+        }
       }
     }
   }
