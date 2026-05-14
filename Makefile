@@ -27,6 +27,5 @@ $(foreach dir, $(filter %Top, $(DIRS)), \
 iocBoot_DEPEND_DIRS += $(filter %App,$(DIRS))
 
 # Add any additional dependency rules here:
-AlarmPushApp_DEPEND_DIRS += hiredisSup
 
 include $(TOP)/configure/RULES_TOP

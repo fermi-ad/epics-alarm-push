@@ -28,10 +28,6 @@ In the IOC's `configure/RELEASE` or `configure/RELEASE.local`:
 
 In the IOC's `myIOCApp/src/Makefile`:
 
-- Add the database definition file for AlarmPush:
-```
-  myIOC_DBD += AlarmPush.dbd
-```
 - Add the support module library for AlarmPush:
 ```
   myIOC_LIBS += AlarmPush
