@@ -26,14 +26,14 @@ struct PrevAlarm { unsigned short stat, sevr; };
 #define LOGWRN(fmt, ...) (LOG_SEVERITY <= (uint)errlogMinor ? errlogPrintf(ANSI_YELLOW("AlarmPush: " fmt "\n"), __VA_ARGS__) : 0)
 #define LOGINF(fmt, ...) (LOG_SEVERITY <= (uint)errlogInfo  ? errlogPrintf("AlarmPush: " fmt "\n", __VA_ARGS__) : 0)
 
-static void my_alarm_func(void* user_arg, dbChannel* chan, int eventsRemaining, db_field_log* pfl)
+static void alarm_event(void* args, dbChannel* pch, int evts, db_field_log* pfl)
 {
-  if (chan && chan->addr.precord && pfl)
+  if (pch && pch->addr.precord && pfl)
   {
     LOGINF("redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i",
-        REDIS_CTX, REDIS_STREAM, chan->name, chan->addr.precord->name, pfl->stat, pfl->sevr);
+        REDIS_CTX, REDIS_STREAM, pch->name, pch->addr.precord->name, pfl->stat, pfl->sevr);
 
-    string pvname = chan->name;
+    string pvname = pch->name;
 
     static map<const string, PrevAlarm> PREV_ALARM;
     PrevAlarm prev;
@@ -154,36 +154,38 @@ static long init_driver()
     //  if we didnt create a redis connection context then dont register DB event hooks
     //  its ok if we got a context but theres no connection yet - we will reconnect above
     //  but if we didnt even get a context object something is wrong so dont hook DB events
-    if (REDIS_CTX)
+    if (REDIS_CTX == 0)
     {
-      auto ctx = db_init_events();
-      auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);
-      LOGINF("ctx %p | dse %i", ctx, dse);
+      errlogPrintf("REDIS_CTX not created - AlarmPush disabled\n");
+      return 0;
+    }
 
-      DBENTRY ent; dbInitEntry(pdbbase, &ent);
-      for (auto st1 = dbFirstRecordType(&ent); st1 == 0; st1 = dbNextRecordType(&ent))
+    //  everything is ok - hook DBE_ALARM for all records
+    auto ctx = db_init_events();
+    auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);
+    LOGINF("ctx %p | dse %i", ctx, dse);
+
+    DBENTRY ent; dbInitEntry(pdbbase, &ent);
+    for (auto st1 = dbFirstRecordType(&ent); st1 == 0; st1 = dbNextRecordType(&ent))
+    {
+      for (auto st2 = dbFirstRecord(&ent); st2 == 0; st2 = dbNextRecord(&ent))
       {
-        for (auto st2 = dbFirstRecord(&ent); st2 == 0; st2 = dbNextRecord(&ent))
-        {
-          LOGINF("dbRecordType %p | typename %s", ent.precordType, ent.precordType ? ent.precordType->name : 0);
-          LOGINF("dbRecordNode %p | recordname %s", ent.precnode, ent.precnode ? ent.precnode->recordname : 0);
+        LOGINF("dbRecordType %p | typename %s", ent.precordType, ent.precordType ? ent.precordType->name : 0);
+        LOGINF("dbRecordNode %p | recordname %s", ent.precnode, ent.precnode ? ent.precnode->recordname : 0);
 
-          //  TODO: further filtering based on record type? existence of alarm fields? other criteria?
+        //  TODO: further filtering based on record type? existence of alarm fields? other criteria?
 
-          auto chn = dbChannelCreate(ent.precnode->recordname);
-          auto alm = db_add_event(ctx, chn, my_alarm_func, 0, DBE_ALARM);
-          LOGWRN("record %s | chn %p | alm %p", ent.precnode ? ent.precnode->recordname : 0, chn, alm);
+        auto chn = dbChannelCreate(ent.precnode->recordname);
+        auto alm = db_add_event(ctx, chn, alarm_event, 0, DBE_ALARM);
+        LOGWRN("record %s | chn %p | alm %p", ent.precnode ? ent.precnode->recordname : 0, chn, alm);
 
-          db_event_enable(alm);
-        }
+        db_event_enable(alm);
       }
     }
   }
   return 0;
 }
 
-static drvet AlarmPushDriver = { 2, 0, init_driver };
+static drvet AlarmPush = { 2, 0, init_driver };
 
-#define EPICS_EXPORT_ADDRESS(...) epicsExportAddress(__VA_ARGS__);
-
-EPICS_EXPORT_ADDRESS(drvet, AlarmPushDriver)
+epicsExportAddress(drvet, AlarmPush);

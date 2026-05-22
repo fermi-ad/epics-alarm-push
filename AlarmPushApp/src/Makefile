@@ -10,6 +10,8 @@ include $(TOP)/configure/CONFIG
 
 LIBRARY_IOC += AlarmPush
 
+DBD += AlarmPush.dbd
+
 # note this needs to have the -I
 AlarmPush_INCLUDES += -I../hiredis
 
