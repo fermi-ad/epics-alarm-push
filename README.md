@@ -40,7 +40,19 @@ In the IOC's `myIOCApp/src/Makefile`:
 
 ## Theory of Operation
 
+A driver is implemented to provide an initialization function that is called during IOC initialization:
+```
+driver(AlarmPush)
+```
+The driver initialization function configures a Redis server connection using information from environment variables, then sets an `iocInit` hook for a second initialization function to be called by the IOC initialization process.
+
+This second initialization function must wait until after the IOC database is initialized (`initHookAfterInitDatabase`) so that it can iterate through all database records and install an alarm event callback (`DBE_ALARM`).
+
+This alarm event callback will post the information about any record's alarm state change to a Redis message queue for use by any observers.
+
 ### Redis Schema
+
+#### Redis `STREAM` data type
 
 Key       | Example Value           | Description
 ----------|-------------------------|------------

@@ -7,9 +7,7 @@
 #include <initHooks.h>
 
 #include <map>
-#include <string>
 #include <cstring>
-#include <ctime>
 
 #include "hiredis/hiredis.h"
 
@@ -122,25 +120,25 @@ static void init_after_db(initHookState state)
 
       //  TODO: further filtering based on record type? existence of alarm fields? other criteria?
 
-        if (ent.precnode == 0 || ent.precnode->recordname == 0 || ent.precnode->recordname[0] == 0)
-        {
-          LOGWRN("skipping record with no recordname - precnode %p", ent.precnode);
-          continue;
-        }
-        auto chn = dbChannelCreate(ent.precnode->recordname);
-        if (chn == 0)
-        {
-          LOGERR("record %s | dbChannelCreate failed", ent.precnode ? ent.precnode->recordname : 0);
-          continue;
-        }
-        auto alm = db_add_event(ctx, chn, alarm_event, 0, DBE_ALARM);
-        if (alm == 0)
-        {
-          LOGERR("record %s | chn %p | db_add_event failed", ent.precnode ? ent.precnode->recordname : 0, chn);
-          continue;
-        }
-        LOGWRN("record %s | chn %p | alm %p", ent.precnode ? ent.precnode->recordname : 0, chn, alm);
-        db_event_enable(alm);
+      if (ent.precnode == 0 || ent.precnode->recordname == 0 || ent.precnode->recordname[0] == 0)
+      {
+        LOGWRN("skipping record with no recordname - precnode %p", ent.precnode);
+        continue;
+      }
+      auto chn = dbChannelCreate(ent.precnode->recordname);
+      if (chn == 0)
+      {
+        LOGERR("record %s | dbChannelCreate failed", ent.precnode ? ent.precnode->recordname : 0);
+        continue;
+      }
+      auto alm = db_add_event(ctx, chn, alarm_event, 0, DBE_ALARM);
+      if (alm == 0)
+      {
+        LOGERR("record %s | chn %p | db_add_event failed", ent.precnode ? ent.precnode->recordname : 0, chn);
+        continue;
+      }
+      LOGWRN("record %s | chn %p | alm %p", ent.precnode ? ent.precnode->recordname : 0, chn, alm);
+      db_event_enable(alm);
     }
   }
 }
