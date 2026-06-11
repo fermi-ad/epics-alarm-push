@@ -71,13 +71,13 @@ static void alarm_event(void* args, dbChannel* pch, int evts, db_field_log* pfl)
   if (pfl->stat == NO_ALARM && pfl->sevr == NO_ALARM)
   {
     reply = (redisReply*)redisCommand(REDIS_CTX,
-        "XADD %s MAXLEN 99999 * device %s source %s severity %s timestamp %s detail %s",
+        "XADD %s MAXLEN 99999 * device %s source epics status %s severity %s timestamp %s detail %s",
         REDIS_STREAM, pvname.c_str(), status.c_str(), severity.c_str(), timestamp.c_str(), detail.c_str());
   }
   else
   {
     reply = (redisReply*)redisCommand(REDIS_CTX,
-        "XADD %s MAXLEN 99999 * device %s source %s severity %s timestamp %s detail %s message %s",
+        "XADD %s MAXLEN 99999 * device %s source epics status %s severity %s timestamp %s detail %s message %s",
         REDIS_STREAM, pvname.c_str(), status.c_str(), severity.c_str(), timestamp.c_str(), detail.c_str(), message.c_str());
   }
 
