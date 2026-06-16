@@ -58,6 +58,7 @@ Key       | Example Value           | Description
 ----------|-------------------------|------------
 timestamp | 1774477060              | time_t (seconds) when alarm changed
 device    | acq2106_347:SFP:1:TEMP  | PV name
-source    | HIHI                    | EPICS [alarm status string](https://docs.epics-controls.org/projects/base/en/r7.0.9/menuAlarmStat.html)
+source    | EPICS                   | Always 'EPICS'
+detail    | HIHI                    | EPICS [alarm status string](https://docs.epics-controls.org/projects/base/en/r7.0.9/menuAlarmStat.html)
 severity  | MAJOR                   | EPICS [alarm severity string](https://docs.epics-controls.org/projects/base/en/r7.0.9/menuAlarmSevr.html)
 message   | value has exceeded HIHI | Text describing the alarm specifics (optional)
