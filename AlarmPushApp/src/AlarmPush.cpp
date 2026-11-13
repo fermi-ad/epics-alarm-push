@@ -127,6 +127,8 @@ static void init_after_db(initHookState state)
 {
   if (state != initHookAfterInitDatabase) return;   //  only once
 
+  int no_filter = stoi(get_env_str("EPICS_ALARM_PUSH_NO_FILTER", "0"));
+
   //  hook DBE_ALARM for all records
   auto ctx = db_init_events();
   auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);
@@ -140,11 +142,15 @@ static void init_after_db(initHookState state)
       LOGINF("dbRecordType %p | typename %s\n", ent.precordType, ent.precordType ? ent.precordType->name : 0);
       LOGINF("dbRecordNode %p | recordname %s\n", ent.precnode, ent.precnode ? ent.precnode->recordname : 0);
 
-      //  TODO: further filtering based on record type? existence of alarm fields? other criteria?
-
       if (ent.precnode == 0 || ent.precnode->recordname == 0 || ent.precnode->recordname[0] == 0)
       {
         LOGWRN("skipping record with no recordname - precnode %p\n", ent.precnode);
+        continue;
+      }
+      size_t rec_name_len = strlen(ent.precnode->recordname);
+      if (no_filter == 0 && rec_name_len > 0 && ent.precnode->recordname[rec_name_len - 1] == '_')
+      {
+        LOGWRN("skipping record with trailing underscore - precnode %p\n", ent.precnode);
         continue;
       }
       auto chn = dbChannelCreate(ent.precnode->recordname);
