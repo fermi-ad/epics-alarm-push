@@ -39,7 +39,7 @@ static void alarm_event(void* args, dbChannel* pch, int evts, db_field_log* pfl)
 {
   if (pch == 0 || pch->name == 0 || pch->addr.precord == 0 || pfl == 0 || REDIS_CTX == 0) return;   //  dont crash
 
-  LOGINF("redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i",
+  LOGINF("redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i\n",
       REDIS_CTX, REDIS_STREAM.c_str(), pch->name, pch->addr.precord->name, pfl->stat, pfl->sevr);
 
   //  return early if alarm would be INVALID, INVALID
@@ -101,13 +101,13 @@ static void alarm_event(void* args, dbChannel* pch, int evts, db_field_log* pfl)
     {
       PREV = curr;
       int result = redisReconnect(REDIS_CTX);
-      LOGERR("error %s | %s | reconnect %i", reply ? reply->str : 0, REDIS_CTX->errstr, result);
+      LOGERR("error %s | %s | reconnect %i\n", reply ? reply->str : 0, REDIS_CTX->errstr, result);
     }
     else
-      { LOGWRN("error %s | %s | defer", reply ? reply->str : 0, REDIS_CTX->errstr); }
+      { LOGWRN("error %s | %s | defer\n", reply ? reply->str : 0, REDIS_CTX->errstr); }
   }
   else
-    { LOGINF("reply %s", reply->str); }
+    { LOGINF("reply %s\n", reply->str); }
 
   freeReplyObject(reply);   //  ok to free 0
 }
@@ -119,36 +119,36 @@ static void init_after_db(initHookState state)
   //  hook DBE_ALARM for all records
   auto ctx = db_init_events();
   auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);
-  LOGINF("ctx %p | dse %i", ctx, dse);
+  LOGINF("ctx %p | dse %i\n", ctx, dse);
 
   DBENTRY ent; dbInitEntry(pdbbase, &ent);
   for (auto st1 = dbFirstRecordType(&ent); st1 == 0; st1 = dbNextRecordType(&ent))
   {
     for (auto st2 = dbFirstRecord(&ent); st2 == 0; st2 = dbNextRecord(&ent))
     {
-      LOGINF("dbRecordType %p | typename %s", ent.precordType, ent.precordType ? ent.precordType->name : 0);
-      LOGINF("dbRecordNode %p | recordname %s", ent.precnode, ent.precnode ? ent.precnode->recordname : 0);
+      LOGINF("dbRecordType %p | typename %s\n", ent.precordType, ent.precordType ? ent.precordType->name : 0);
+      LOGINF("dbRecordNode %p | recordname %s\n", ent.precnode, ent.precnode ? ent.precnode->recordname : 0);
 
       //  TODO: further filtering based on record type? existence of alarm fields? other criteria?
 
       if (ent.precnode == 0 || ent.precnode->recordname == 0 || ent.precnode->recordname[0] == 0)
       {
-        LOGWRN("skipping record with no recordname - precnode %p", ent.precnode);
+        LOGWRN("skipping record with no recordname - precnode %p\n", ent.precnode);
         continue;
       }
       auto chn = dbChannelCreate(ent.precnode->recordname);
       if (chn == 0)
       {
-        LOGERR("record %s | dbChannelCreate failed", ent.precnode ? ent.precnode->recordname : 0);
+        LOGERR("record %s | dbChannelCreate failed\n", ent.precnode ? ent.precnode->recordname : 0);
         continue;
       }
       auto alm = db_add_event(ctx, chn, alarm_event, 0, DBE_ALARM);
       if (alm == 0)
       {
-        LOGERR("record %s | chn %p | db_add_event failed", ent.precnode ? ent.precnode->recordname : 0, chn);
+        LOGERR("record %s | chn %p | db_add_event failed\n", ent.precnode ? ent.precnode->recordname : 0, chn);
         continue;
       }
-      LOGWRN("record %s | chn %p | alm %p", ent.precnode ? ent.precnode->recordname : 0, chn, alm);
+      LOGWRN("record %s | chn %p | alm %p\n", ent.precnode ? ent.precnode->recordname : 0, chn, alm);
       db_event_enable(alm);
     }
   }
