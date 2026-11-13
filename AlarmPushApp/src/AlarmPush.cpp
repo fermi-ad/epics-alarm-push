@@ -42,8 +42,19 @@ static void alarm_event(void* args, dbChannel* pch, int evts, db_field_log* pfl)
   LOGINF("redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i\n",
       REDIS_CTX, REDIS_STREAM.c_str(), pch->name, pch->addr.precord->name, pfl->stat, pfl->sevr);
 
+  //  return early if not an alarm
+  if ((pfl->mask & DBE_ALARM) == 0)
+  {
+    LOGWRN("mask does not include DBE_ALARM %x\n", pfl->mask);
+    return;
+  }
+
   //  return early if alarm would be INVALID, INVALID
-  if (pfl->stat >= ALARM_NSTATUS && pfl->sevr >= epicsSevInvalid) return;
+  if (pfl->stat >= ALARM_NSTATUS && pfl->sevr >= epicsSevInvalid)
+  {
+    LOGWRN("out of range stat %u and sevr %u\n", pfl->stat, pfl->sevr);
+    return;
+  }
 
   string pvname = pch->name;
 
