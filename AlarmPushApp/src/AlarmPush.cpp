@@ -13,24 +13,37 @@
 
 using namespace std;
 
-static uint LOG_SEVERITY = 0;
-static char REDIS_STREAM[64] = { 0 };
-static redisContext* REDIS_CTX = 0;
-
 struct PrevAlarm { unsigned short stat, sevr; };
 
-//  defining our own version of errlogSevPrintf so that we can start with
-//  no logging by default and only log at the level defined by our env var
-#define LOGERR(fmt, ...) (LOG_SEVERITY <= (uint)errlogMajor ? errlogPrintf(ANSI_RED("AlarmPush: " fmt "\n"), __VA_ARGS__) : 0)
-#define LOGWRN(fmt, ...) (LOG_SEVERITY <= (uint)errlogMinor ? errlogPrintf(ANSI_YELLOW("AlarmPush: " fmt "\n"), __VA_ARGS__) : 0)
-#define LOGINF(fmt, ...) (LOG_SEVERITY <= (uint)errlogInfo  ? errlogPrintf("AlarmPush: " fmt "\n", __VA_ARGS__) : 0)
+static string REDIS_STREAM;
+static redisContext* REDIS_CTX = 0;
+
+//  per errlog.h: errlogInfo = 0, errlogMinor = 1, errlogMajor = 2, errlogFatal = 3
+static uint LOG_SEVERITY = errlogFatal;
+#define LOGERR(fmt, ...) do { if (LOG_SEVERITY <= errlogMajor) errlogPrintf(ANSI_RED("AlarmPush: " fmt), ##__VA_ARGS__);    } while(0)
+#define LOGWRN(fmt, ...) do { if (LOG_SEVERITY <= errlogMinor) errlogPrintf(ANSI_YELLOW("AlarmPush: " fmt), ##__VA_ARGS__); } while(0)
+#define LOGINF(fmt, ...) do { if (LOG_SEVERITY <= errlogInfo)  errlogPrintf("AlarmPush: " fmt, ##__VA_ARGS__);              } while(0)
+
+static string get_env_str(const string& key, const string& def = "")
+{
+  char key_buf[128] = { 0 }, def_buf[128] = { 0 }, val_buf[128] = { 0 };
+  strncpy(key_buf, key.c_str(), sizeof(key_buf) - 1);
+  strncpy(def_buf, def.c_str(), sizeof(def_buf) - 1);
+
+  ENV_PARAM envp = { key_buf, def_buf };
+  envGetConfigParam(&envp, sizeof(val_buf), val_buf);
+  return val_buf;
+}
 
 static void alarm_event(void* args, dbChannel* pch, int evts, db_field_log* pfl)
 {
   if (pch == 0 || pch->name == 0 || pch->addr.precord == 0 || pfl == 0 || REDIS_CTX == 0) return;   //  dont crash
 
   LOGINF("redis %p | stream %s | chan %s | recd %s | stat %i | sevr %i",
-      REDIS_CTX, REDIS_STREAM, pch->name, pch->addr.precord->name, pfl->stat, pfl->sevr);
+      REDIS_CTX, REDIS_STREAM.c_str(), pch->name, pch->addr.precord->name, pfl->stat, pfl->sevr);
+
+  //  return early if alarm would be INVALID, INVALID
+  if (pfl->stat >= ALARM_NSTATUS && pfl->sevr >= epicsSevInvalid) return;
 
   string pvname = pch->name;
 
@@ -70,13 +83,13 @@ static void alarm_event(void* args, dbChannel* pch, int evts, db_field_log* pfl)
   {
     reply = (redisReply*)redisCommand(REDIS_CTX,
         "XADD %s MAXLEN 99999 * device %s source EPICS severity %s timestamp %s detail %s",
-        REDIS_STREAM, pvname.c_str(), severity.c_str(), timestamp.c_str(), status.c_str());
+        REDIS_STREAM.c_str(), pvname.c_str(), severity.c_str(), timestamp.c_str(), status.c_str());
   }
   else
   {
     reply = (redisReply*)redisCommand(REDIS_CTX,
         "XADD %s MAXLEN 99999 * device %s source EPICS severity %s timestamp %s detail %s message %s",
-        REDIS_STREAM, pvname.c_str(), severity.c_str(), timestamp.c_str(), status.c_str(), message.c_str());
+        REDIS_STREAM.c_str(), pvname.c_str(), severity.c_str(), timestamp.c_str(), status.c_str(), message.c_str());
   }
 
   if (reply == 0 || reply->type == REDIS_REPLY_ERROR)
@@ -145,47 +158,28 @@ static long init_driver()
 {
   if (REDIS_CTX) return 0;  //  only once
 
-  char env_key[64], env_def[64];
-  ENV_PARAM envp = { env_key, env_def };
-
-  strncpy(env_key, "EPICS_ALARM_PUSH_LOG_SEVERITY", sizeof(env_key));
-  strncpy(env_def, "-1", sizeof(env_def));
-  char log_sev_str[16] = { 0 };
-  envGetConfigParam(&envp, sizeof(log_sev_str), log_sev_str);
-  LOG_SEVERITY = (uint)atoi(log_sev_str);
-
-  errlogPrintf("EPICS_ALARM_PUSH_LOG_SEVERITY %u\n", LOG_SEVERITY);
-
-  strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_STREAM", sizeof(env_key));
-  strncpy(env_def, "acorn:alarms", sizeof(env_def));
-  envGetConfigParam(&envp, sizeof(REDIS_STREAM), REDIS_STREAM);
-
-  strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_HOST", sizeof(env_key));
-  env_def[0] = 0;   //  no default
-  char redis_host[64] = { 0 };
-  envGetConfigParam(&envp, sizeof(redis_host), redis_host);
-
-  //  if no EPICS_ALARM_PUSH_REDIS_HOST was found, go no further
-  //  this will prevent the DB event hooks from being registered
-  //  so no alarm push functionality will occur
-  if (redis_host[0] == 0)
+  //  if no EPICS_ALARM_PUSH_REDIS_HOST was found go no further - this will prevent
+  //  the DB event hooks from being registered so no alarm push functionality will occur
+  string redis_host = get_env_str("EPICS_ALARM_PUSH_REDIS_HOST");   //  no default
+  if (redis_host.size() == 0)
   {
     errlogPrintf("EPICS_ALARM_PUSH_REDIS_HOST not found - AlarmPush disabled\n");
     return 0;
   }
-  strncpy(env_key, "EPICS_ALARM_PUSH_REDIS_PORT", sizeof(env_key));
-  strncpy(env_def, "6379", sizeof(env_def));
-  char redis_port_str[16] = { 0 };
-  envGetConfigParam(&envp, sizeof(redis_port_str), redis_port_str);
-  int redis_port = atoi(redis_port_str);
+  LOG_SEVERITY = (uint)stoi(get_env_str("EPICS_ALARM_PUSH_LOG_SEVERITY", to_string(LOG_SEVERITY)));
+  errlogPrintf("EPICS_ALARM_PUSH_LOG_SEVERITY %u\n", LOG_SEVERITY);
 
-  REDIS_CTX = redisConnect(redis_host, redis_port);
+  REDIS_STREAM = get_env_str("EPICS_ALARM_PUSH_REDIS_STREAM", "acorn:alarms");
+
+  int redis_port = stoi(get_env_str("EPICS_ALARM_PUSH_REDIS_PORT", "6379"));
+
+  REDIS_CTX = redisConnect(redis_host.c_str(), redis_port);
   if (REDIS_CTX == 0)
-    { LOGERR("redis host %s | port %i | context %p", redis_host, redis_port, REDIS_CTX); }
+    { LOGERR("redis host %s | port %i | context %p\n", redis_host.c_str(), redis_port, REDIS_CTX); }
   else if (REDIS_CTX->errstr[0])
-    { LOGWRN("redis host %s | port %i | context %p | %s", redis_host, redis_port, REDIS_CTX, REDIS_CTX->errstr); }
+    { LOGWRN("redis host %s | port %i | context %p | %s\n", redis_host.c_str(), redis_port, REDIS_CTX, REDIS_CTX->errstr); }
   else
-    { LOGINF("redis host %s | port %i | context %p", redis_host, redis_port, REDIS_CTX); }
+    { LOGINF("redis host %s | port %i | context %p\n", redis_host.c_str(), redis_port, REDIS_CTX); }
 
   //  if we didnt create a redis connection context then dont register DB event hooks
   //  its ok if we got a context but theres no connection yet - we will reconnect above
