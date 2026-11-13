@@ -128,6 +128,7 @@ static void init_after_db(initHookState state)
   if (state != initHookAfterInitDatabase) return;   //  only once
 
   int no_filter = stoi(get_env_str("EPICS_ALARM_PUSH_NO_FILTER", "0"));
+  errlogPrintf("EPICS_ALARM_PUSH_NO_FILTER %u\n", no_filter);
 
   //  hook DBE_ALARM for all records
   auto ctx = db_init_events();
@@ -150,22 +151,22 @@ static void init_after_db(initHookState state)
       size_t rec_name_len = strlen(ent.precnode->recordname);
       if (no_filter == 0 && rec_name_len > 0 && ent.precnode->recordname[rec_name_len - 1] == '_')
       {
-        LOGWRN("skipping record with trailing underscore - precnode %p\n", ent.precnode);
+        LOGINF("skipping record with trailing underscore - %s\n", ent.precnode->recordname);
         continue;
       }
       auto chn = dbChannelCreate(ent.precnode->recordname);
       if (chn == 0)
       {
-        LOGERR("record %s | dbChannelCreate failed\n", ent.precnode ? ent.precnode->recordname : 0);
+        LOGERR("record %s | dbChannelCreate failed\n", ent.precnode->recordname);
         continue;
       }
       auto alm = db_add_event(ctx, chn, alarm_event, 0, DBE_ALARM);
       if (alm == 0)
       {
-        LOGERR("record %s | chn %p | db_add_event failed\n", ent.precnode ? ent.precnode->recordname : 0, chn);
+        LOGERR("record %s | chn %p | db_add_event failed\n", ent.precnode->recordname, chn);
         continue;
       }
-      LOGWRN("record %s | chn %p | alm %p\n", ent.precnode ? ent.precnode->recordname : 0, chn, alm);
+      LOGWRN("record %s | chn %p | alm %p\n", ent.precnode->recordname, chn, alm);
       db_event_enable(alm);
     }
   }
