@@ -48,7 +48,6 @@ static void alarm_event(void* args, dbChannel* pch, int evts, db_field_log* pfl)
     LOGWRN("mask does not include DBE_ALARM %x\n", pfl->mask);
     return;
   }
-
   //  return early if alarm would be INVALID, INVALID
   if (pfl->stat >= ALARM_NSTATUS && pfl->sevr >= epicsSevInvalid)
   {
