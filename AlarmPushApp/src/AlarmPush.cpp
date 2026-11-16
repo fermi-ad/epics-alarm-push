@@ -126,10 +126,12 @@ static void init_after_db(initHookState state)
 {
   if (state != initHookAfterInitDatabase) return;   //  only once
 
+  // records with trailing underscore omitted unless EPICS_ALARM_PUSH_NO_FILTER set
   int no_filter = stoi(get_env_str("EPICS_ALARM_PUSH_NO_FILTER", "0"));
   errlogPrintf("EPICS_ALARM_PUSH_NO_FILTER %u\n", no_filter);
 
-  //  hook DBE_ALARM for all records
+  // no_filter == 0     hook DBE_ALARM for records without trailing underscore
+  // no_filter != 0     hook DBE_ALARM for all records
   auto ctx = db_init_events();
   auto dse = db_start_events(ctx, 0, 0, 0, epicsThreadPriorityMedium);
   LOGINF("ctx %p | dse %i\n", ctx, dse);

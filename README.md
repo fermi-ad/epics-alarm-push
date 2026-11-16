@@ -17,6 +17,10 @@ Logging must be explicitly enabled (set to a value from `errlogSevEnum`):
 
 - `EPICS_ALARM_PUSH_LOG_SEVERITY` (default undefined)
 
+Records named with a trailing underscore will be ignored unless this var is non-zero:
+
+- `EPICS_ALARM_PUSH_NO_FILTER` (default `0`)
+
 ## IOC Integration
 
 In the IOC's `configure/RELEASE` or `configure/RELEASE.local`:
